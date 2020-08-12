@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ScrapJavaSpec": {
+      "commandName": "Project",
+      "commandLineArgs": "9"
+    }
+  }
+}

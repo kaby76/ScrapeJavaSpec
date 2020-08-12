@@ -1,21 +1,19 @@
 ﻿using Antlr4.Runtime;
-using System.Text;
+using Antlr4.Runtime.Tree;
 using HtmlAgilityPack;
-using System.Linq;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
-using System;
-using Antlr4.Runtime.Tree;
-using System.Runtime.ExceptionServices;
-using System.Diagnostics.CodeAnalysis;
-using System.Net.Mime;
+using System.Text;
 
 namespace ReadJavaGrammar
 {
     class Program
     {
-        public static string addr = "https://docs.oracle.com/javase/specs/jls/se8/html/jls-19.html";
+        public static string addr;
+        public static string version;
 
         static void Rec(StringBuilder sb, string lhs, List<HtmlNode> rhs_node_children, bool alt = false)
         {
@@ -38,12 +36,13 @@ namespace ReadJavaGrammar
                 else if (rhs_s.Name == "br")
                 {
                     if (j + 1 == rhs_node_children.Count
-                        || (rhs_node_children[j + 1].InnerText.Replace(" ", "").Replace("\n", "").Trim() == "" && j+2 == rhs_node_children.Count))
+                        || (rhs_node_children[j + 1].InnerText.Replace(" ", "").Replace("\n", "").Trim() == "" && j + 2 == rhs_node_children.Count))
                     {
-
                     }
+                    else if (alt)
+                    { }
                     else
-                        sb.Append("| ");
+                    sb.Append("| ");
                     // It appears after visiting the spec, a <br> can be in "(one of)"
                     // rules. But, the <br> has no meaning, so continue to consider anything
                     // as alt.
@@ -52,6 +51,8 @@ namespace ReadJavaGrammar
                 }
                 else if (rhs_s.Name == "#text")
                 {
+                    if (rhs.Contains("ConditionalAndExpression"))
+                        rhs = " " + lc(rhs.Trim());
                     sb.Append(rhs);
                 }
                 else if (rhs_s.Name == "a")
@@ -92,8 +93,13 @@ namespace ReadJavaGrammar
         {
             StringBuilder sb = new StringBuilder();
             HtmlAgilityPack.HtmlDocument doc = null;
+            version = "8";
+            if (args.Length > 0)
+                version = args[0];
+            addr = "https://docs.oracle.com/javase/specs/jls/se" + version + "/html/jls-19.html";
+
             string local_file_name = "c:/temp/java.gra";
-            if (! System.IO.File.Exists(local_file_name))
+//            if (! System.IO.File.Exists(local_file_name))
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(addr);
                 HttpWebResponse response = (HttpWebResponse)request.GetResponse();
@@ -122,7 +128,21 @@ namespace ReadJavaGrammar
                 var lhs = lhs_list[i].InnerText;
                 var rhs_node = rhs_list[i];
                 List<HtmlNode> rhs_node_children = rhs_node.ChildNodes.ToList();
-                if (i >= 4)
+                int cutoff;
+                if (Program.version == "14")
+                {
+                    cutoff = 6;
+                }
+                else if (Program.version == "10" || Program.version == "11" || Program.version == "12" || Program.version == "13" || Program.version == "14")
+                {
+                    cutoff = 5;
+                }
+                else
+                {
+                    cutoff = 4;
+                }
+
+                if (i >= cutoff)
                 {
                     sb.AppendLine(lc(lhs));
                     Rec(sb, lhs, rhs_node_children);
@@ -171,7 +191,7 @@ namespace ReadJavaGrammar
         public Listen()
         {
             sb.AppendLine("grammar Java"
-                + (Program.addr.Contains("se8") ? "8" : "unknown")
+                + Program.version
                 + ";");
             sb.AppendLine();
         }
@@ -233,10 +253,34 @@ namespace ReadJavaGrammar
 
         public override void ExitRules([Antlr4.Runtime.Misc.NotNull] JavaSpecParser.RulesContext context)
         {
+            if (Program.version == "8")
+            {
+                sb.AppendLine(@"
+");
+            }
+            if (Program.version == "9")
+            {
+                sb.AppendLine(@"
+variableAccess : expressionName | fieldAccess ;
+");
+            }
+            if (Program.version == "10" || Program.version == "11" || Program.version == "12" || Program.version == "13")
+            {
+                sb.AppendLine(@"
+variableAccess : expressionName | fieldAccess ;
+typeIdentifier : identifier;");
+            }
+            if (Program.version == "14")
+            {
+                sb.AppendLine(@"
+variableAccess : expressionName | fieldAccess ;
+typeIdentifier : identifier;
+unqualifiedMethodIdentifier : identifier;");
+            }
             sb.AppendLine(@"
-// LEXER
+identifier : Identifier | 'to' | 'module' | 'open' | 'with' | 'provides' | 'uses' | 'opens' | 'requires' | 'exports' ;
 
-identifier : Identifier | 'to' | 'module' | 'open' | 'with' | 'provides' | 'uses' | 'opens' | 'requires' | 'exports';
+// LEXER
 
 // §3.9 Keywords
 
